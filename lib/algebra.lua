@@ -35,6 +35,8 @@ current_sequence_step = {
   ["gate"] = {}
 }
 
+current_note = {}
+
 -- store params until ready to add to group
 local param_queue = {}
 function queue_add_param(param)
@@ -77,7 +79,7 @@ for i = 1,4,1 do
     for key,value in pairs(note_traits.current) do
         queue_add_param{ type = "number", id = key.. " div " ..i, name = key.. " div " ..i, min = 1, max = 16, default = 1}
         queue_add_param{ type = "number", id = key.. " sequence start " ..i, name = key.. " sequence start " ..i, min = 1, max = 16, default = 1}
-        queue_add_param{ type = "number", id = key.. " sequence end " ..i, name = key.. " sequence end " ..i, min = 1, max = 16, default = 1}
+        queue_add_param{ type = "number", id = key.. " sequence end " ..i, name = key.. " sequence end " ..i, min = 1, max = 16, default = 6}
         queue_add_param{ type = "number", id = "current " ..key.. " step " ..i, name = "current " ..key.. " step " ..i, min = 1, max = 16, default = 1}
     end
 
@@ -127,7 +129,7 @@ collection_0 =
   {1,8,13,20,25,32,37,1,3,8,13,15,20,25,1,3,8,10,13,15,20,1,3,5,8,10,13,15},
   {1,6,13,18,25,30,37,1,6,8,13,18,20,25,1,3,6,8,13,15,18,1,3,6,8,10,13,15}}
 
-local offset_list = {{0,5,12,17,24},{0,7,12,19,24}}
+offset_list = {{0,5,12,17,24},{0,7,12,19,24}}
 
 algebra = {}
 current_channel = {}
@@ -172,8 +174,13 @@ function trait_tick(a_trait, track)
   end
 end
 
-function determine_traits(track)
-  check_step_probability(track)
+function determine_traits(track, flourish)
+  if flourish ~= true then
+    check_step_probability(track)
+  end
+  local interval = params:get('interval ' ..track.. ' '..params:get('current interval step ' ..track))
+  local octave = params:get('octave ' ..track.. ' ' ..params:get('current octave step ' ..track))
+  local length = params:get('length ' ..track.. ' ' ..params:get('current length step ' ..track))
   local current_inner_index = {} -- setting up some things for the algebra later
   local current_octave = {}
   local current_offset = {}
@@ -186,9 +193,9 @@ function determine_traits(track)
   current_note[track] = note_traits.calculated.interval[track] + octave * 12 + current_offset[track]
   current_channel[track] = params:get("midi channel " ..track)
   for key,value in pairs(note_traits.current) do
-      note_traits.previous.key[track] = note_traits.previous.key[track]
+      note_traits.previous[key][track] = note_traits.previous[key][track]
   end
-  play(current_note[track], velocity, length_values[length], current_channel[i], track)
+  play(current_note[track], velocity, length_values[length], current_channel[i], track, flourish)
 end
 
 function check_step_probability(track)
@@ -201,9 +208,10 @@ function check_step_probability(track)
   end
 end
 
-function play(note, vel, length, channel, track)
-  if math.random(1, 100) <= params:get('probability ' ..track) and params:get("track active " ..track) >= 1 then
+function play(note, vel, length, channel, track, flourish)
+  if flourish or (math.random(1, 100) <= params:get('probability ' ..track) and params:get("track active " ..track) >= 1 ) then
     m:note_on(note, vel, channel)
+      print(note,vel,length,channel,track, flourish)
     end
     clock.run(note_off, note, vel, length, channel, track)
   end
@@ -213,6 +221,9 @@ function play(note, vel, length, channel, track)
          m:note_off(note, vel, channel)
   end
 
-function transpose_flourish()
+function offset_flourish(track)
   print('You paint so beautifully!')
+  previous_offset[track] = params:get('offset ' ..track)
+  determine_traits(track, true)
+  grid_dirty = true
 end
